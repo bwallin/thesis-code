@@ -1,0 +1,54 @@
+Dependencies
+============
+Python 2.7+
+scipy
+pylab
+pykalman
+pandas
+
+Contents
+========
+
+Scripts
+-------
+
+sampler.py
+    Main script to create and execute Gibbs sampler
+
+simulate_data.py
+    Script to generate data from model
+
+vis_results.py
+    Script to produce visualization of sampler results.
+
+vis_data.py
+    Script to produce visualization of data/simulation.
+
+ffbs_test.py
+    Script to test FFBS implementation correctness.
+
+Modules
+-------
+
+gibbs.py
+	Library containing Model and Gibbs sampler classes
+
+misc.py
+    Miscellaneous and FFBS algorithm
+
+stats_util.py
+    Miscellaneous random variable classes/functions
+
+model_simulation_alpha.py
+    Model spec and FCPs for simulation alpha: g and sigma_g sampling
+
+model_simulation_beta.py
+    Model spec and FCPs for simulation beta: g and sigma_g sampling with noise
+
+model_simulation_gamma.py
+    Model spec and FCPs for simulation beta: g, h, sigma_g, sigma_h, proportions, and types
+
+model_simulation_gamma.py
+    Model spec and FCPs for simulation beta: g, h, sigma_g, sigma_h, proportions, and types with noise
+
+
