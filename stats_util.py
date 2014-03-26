@@ -22,7 +22,7 @@ class dirichlet():
     def pdf(self, x):
         # UNTESTED!
         alpha = self.alpha
-        return (math.gamma(sum(alpha)) / 
+        return (math.gamma(sum(alpha)) /
                reduce(operator.mul, [math.gamma(a) for a in alpha]) *
                reduce(operator.mul, [x[i]**(alpha[i]-1.0) for i in range(len(alpha))]))
 
@@ -70,11 +70,11 @@ class iid_dist():
 
     def rvs(self, size=None):
         return self.distribution.rvs(self.n)
-    
+
 
 class online_meanvar():
     def __init__(self):
-        self.mean = None 
+        self.mean = None
         self.var = None
         self.n_samples = 0
 

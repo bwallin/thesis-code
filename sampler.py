@@ -15,7 +15,6 @@ from scipy import array
 from gibbs import GibbsSampler
 from gibbs import raw_sample_handler, indep_meanvar_handler, discrete_handler
 from misc import load_as_frame
-from vis_lib import plot_iteration
 
 def main():
     ### Parse command line options
@@ -48,6 +47,9 @@ def main():
     cmdline_parser.add_option('-g', '--visualize', dest='visualize',
                               action='store_true',
                               help='Visualize intermediate results')
+    cmdline_parser.add_option('-G', '--visualize-priors', dest='visualize_priors',
+                              action='store_true',
+                              help='Visualize prior distributions')
     cmdline_parser.add_option('-p', '--parameter-file', dest='parameter_filename',
                               help='Use known parameters in file (i.e. simulated file).')
     options, args = cmdline_parser.parse_args()
@@ -75,7 +77,9 @@ def main():
                            burnin=burnin,
                            subsample=subsample)
     if options.visualize:
-        sampler.add_visualizer(plot_iteration)
+        sampler.add_visualizer(model_module.visualize_gibbs)
+    if options.visualize_priors:
+        model_module.visualize_priors(model.priors)
 
 
     sampler.add_sample_handler('p_type', raw_sample_handler())

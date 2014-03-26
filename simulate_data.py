@@ -25,7 +25,7 @@ cmdline_parser.add_option('-n', '--length', dest='length',
                           help='Number of data points')
 cmdline_parser.add_option('-v', '--visualize', dest='visualize',
                           action='store_true',
-                          help='Visualize intermediate results')
+                          help='Visualize results')
 cmdline_parser.add_option('--phi', dest='phi',
                           type='float', default=0,
                           help='Decay coefficient for canopy')
@@ -91,45 +91,45 @@ transition_h_rv = stats.norm(0, sigma_h)
 observation_g_rv = stats.norm(0, sigma_z_g)
 observation_h_rv = stats.norm(0, sigma_z_h)
 type_rv = categorical(proportions)
-noise_rv = stats.uniform(loc=-40, scale=80)
+noise_rv = stats.uniform(loc=-60, scale=120)
 
-t = zeros((n,), dtype=int)
+T = zeros((n,), dtype=int)
 g = zeros((n,))
 h = zeros((n,))
 g[0] = stats.norm(mu_g_0, sigma_g_0).rvs()
 h[0] = stats.norm(mu_h_0, sigma_h_0).rvs()
-t[0] = type_rv.rvs()[0]
-if t[0] == 0:
+T[0] = type_rv.rvs()[0]
+if T[0] == 0:
     z = noise_rv.rvs()
-if t[0] == 1:
+if T[0] == 1:
     z = g[0] + observation_g_rv.rvs()
-if t[0] == 2:
+if T[0] == 2:
     z = g[0] + h[0] + observation_h_rv.rvs()
 
-data = [[0, 0, z, 0, t[0]]]
+data = [[0, 0, z, 0, T[0]]]
 for i in range(1, n):
-    t[i] = type_rv.rvs()[0]
+    T[i] = type_rv.rvs()[0]
     g[i] = g[i-1] + transition_g_rv.rvs()
     h[i] = phi*(h[i-1] - mu_h) + mu_h + transition_h_rv.rvs()
-    if t[i] == 0:
+    if T[i] == 0:
         z = noise_rv.rvs()
-    elif t[i] == 1:
+    elif T[i] == 1:
         z = g[i] + observation_g_rv.rvs()
     else:
         z = g[i] + h[i] + observation_h_rv.rvs()
-    data += [[dx*i, 0, z, i, t[i]]]
+    data += [[dx*i, 0, z, i, T[i]]]
 
-data=array(data)
-plot(data[:,0], data[:,2], '.')
-
-show()
+if options.visualize:
+    data=array(data)
+    plot(data[:,0], data[:,2], '.')
+    show()
 
 with open('../data/%s.txt'%options.name, 'w') as f:
     for row in data:
         f.write(' '.join([str(el) for el in row])+'\n')
 
 with open('../data/%s.pkl'%options.name, 'wb') as f:
-    results = {'t': t,
+    results = {'T': T,
                'h': h,
                'g': g,
                'phi': phi,

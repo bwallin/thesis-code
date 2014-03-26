@@ -7,6 +7,7 @@ from scipy import array, zeros, dot, transpose, matrix
 from scipy import stats, sqrt, cumsum
 from scipy import loadtxt
 from scipy.linalg import norm, inv
+from stats_util import mvnorm
 import pandas
 
 def gen_shot_ids(frame, tol=.05):
@@ -62,31 +63,33 @@ def forward_filter_backward_sample(kf, y):
     '''
     Sample from the DLM kf conditioned on observations y.
     '''
-    n = len(y)
-    m = kf.n_dim_state
+    n_obs,len_obs = y.shape
+    n_states = len(kf.initial_state_mean)
     G, W = kf.transition_matrices, kf.transition_covariance
+    u = kf.transition_offsets
+    if u is None:
+        u = zeros((n_obs, n_states))
 
     # filtered estimate
     x_f, P_f = kf.filter(y)
 
     # one-step predicted estimate
-    x_p, P_p = zeros((n,m)),zeros((n,m,m))
-    x_p[0] = kf.initial_state_mean
-    P_p[0] = kf.initial_state_covariance
-    for i in xrange(1,n):
-        x_p[i] = G*x_f[i-1]
+    x_p, P_p = zeros((n_obs, n_states)), zeros((n_obs, n_states, n_states))
+    x_p[0,:] = kf.initial_state_mean
+    P_p[0,:,:] = kf.initial_state_covariance
+    for i in xrange(1, n_obs):
+        x_p[i] = dot(G, x_f[i-1]) + u[i,:]
         P_p[i] = dot(G, dot(P_f[i-1], transpose(G))) + W
 
     # Sample last state, and iterate backwards
-    x = zeros((n,m))
-    x[-1] = stats.norm(loc=x_f[-1], scale=sqrt(P_f[-1])).rvs()
-    u = kf.transition_offsets if kf.transition_offsets is not None else zeros((n,m))
-    for i in range(n-2, -1, -1):
+    x = zeros((n_obs, n_states))
+    x[-1] = mvnorm(x_f[-1], sqrt(P_f[-1])).rvs()
+    for i in range(n_obs-2, -1, -1):
         J = dot(P_f[i], dot(transpose(G), inv(matrix(P_p[i+1]))))
-        m = x_f[i] + dot(J, x[i+1] - u[i+1] - x_p[i+1])
+        m = x_f[i] + dot(J, x[i+1] - x_p[i+1])
         V = P_f[i] - dot(J, dot(P_p[i+1], transpose(J)))
 
-        N = stats.norm(m, sqrt(V))
+        N = mvnorm(m, sqrt(V))
         x[i] = N.rvs()
 
     return x

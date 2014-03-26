@@ -13,6 +13,7 @@ class Model():
         self.hyper_params = None
         self.data = None
         self.priors = None
+        self.initials = None
         self.FCP_samplers = None
         self.sample_handlers = None
 
@@ -24,6 +25,9 @@ class Model():
 
     def set_hyper_params(self, p_dict):
         self.hyper_params = p_dict
+
+    def set_initials(self, i_dict):
+        self.initials = i_dict
 
     def set_priors(self, p_dict):
         self.priors = p_dict
@@ -82,7 +86,10 @@ class GibbsSampler(object):
 
         # Initial sample from priors
         for variable in self.model.variable_names:
-            evidence[variable] = self.model.priors[variable].rvs()
+            if self.model.initials and variable in self.model.initials:
+                evidence[variable] = self.model.initials[variable]
+            else:
+                evidence[variable] = self.model.priors[variable].rvs()
 
         # Setup progressbar
         progressbar_widgets = ['Gibbs sampling:', Percentage(), ' ',
@@ -100,8 +107,7 @@ class GibbsSampler(object):
                         handler.update(sample)
 
             if self.visualizer and i > self.burnin and not self.bypass:
-                self.visualizer(evidence)
-                pdb.set_trace()
+                self.visualizer(self, evidence)
 
             if self.diagnostic_variable:
                 self.diagnostic_trace.append(evidence[self.diagnostic_variable])

@@ -56,20 +56,21 @@ def plot_type_estimates(ax, d, z, T_mode):
     for i in range(N):
         ax.plot([d[i]], [z[i]], '.', color=colors[T_mode[i]], markersize=3)
 
-def plot_mcmc_diagnostics(diagnostic):
+def plot_mcmc_diagnostics(fig, diagnostic, burnin, subsample):
     variable, trace = diagnostic['variable'], diagnostic['trace']
     trace = array(trace).flatten()
-    fig = figure()
     ax = fig.add_subplot(121)
     ax.plot(trace)
+    axvline(x=burnin, color='r')
     ax.set_ylabel(variable)
     ax.set_title('Trace of %s'%variable)
-    maxlags = 25
+    maxlags = 50
     def normlize(x):
         return (x-mean(x))/var(x)
     ax = fig.add_subplot(122)
-    lags, acf, l1, l2 = acorr(normlize(trace),
+    lags, acf, l1, l2 = acorr(normlize(trace[burnin:]),
                               maxlags=maxlags, detrend=normlize)
+    axvline(x=subsample, color='b')
     ax.set_xlim([0, maxlags])
     ax.set_ylabel('lag')
     ax.set_ylabel('ACF')
@@ -102,8 +103,7 @@ def compute_confusion_T(T, T_true):
 def plot_posterior_hist(ax, variable, samples, validation_data=None):
     histogram = ax.hist(samples, 20)
     if validation_data:
-        ax.plot([validation_data[variable], validation_data[variable]],
-                [0, 1.2*max(histogram[0])])
-    ax.set_xlabel(variable)
+        axvline(x=validation_data[variable])
+        ax.set_xlabel(variable)
 
 
