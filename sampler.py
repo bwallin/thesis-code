@@ -69,7 +69,6 @@ def main():
     model = model_module.define_model(data)
     n_points = len(data)
     n_shots = len(set(data['shot_id']))
-    m = 3
 
     # Setup gibbs sampler
     sampler = GibbsSampler(model=model,
@@ -83,15 +82,18 @@ def main():
 
 
     sampler.add_sample_handler('p_type', raw_sample_handler())
+    sampler.add_sample_handler('noise_proportion', raw_sample_handler())
     sampler.add_sample_handler('g', indep_meanvar_handler())
     sampler.add_sample_handler('h', indep_meanvar_handler())
     sampler.add_sample_handler('surfaces', indep_meanvar_handler())
     sampler.add_sample_handler('phi', raw_sample_handler())
     sampler.add_sample_handler('sigma_g', raw_sample_handler())
     sampler.add_sample_handler('sigma_h', raw_sample_handler())
-    sampler.add_sample_handler('T', discrete_handler(support=range(m), length=n_points))
+    sampler.add_sample_handler('transition_var_g', raw_sample_handler())
+    sampler.add_sample_handler('transition_var_h', raw_sample_handler())
+    sampler.add_sample_handler('T', discrete_handler(support=range(3), length=n_points))
     sampler.add_sample_handler('C', discrete_handler(support=range(3), length=n_points))
-    sampler.set_diagnostic_variable('sigma_g')
+    sampler.set_diagnostic_variable('transition_var_g')
 
     # Begin sampling
     start_time = time.time()
