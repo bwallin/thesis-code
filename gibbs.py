@@ -62,7 +62,7 @@ class GibbsSampler(object):
         self.subsample = subsample
         self.visualizer = None
         self.diagnostic_variable = None
-        self.bypass = False
+        self.bypass_vis = False
 
     def add_sample_handler(self, variable, handler):
         self.sample_handlers[variable].append(handler)
@@ -91,6 +91,9 @@ class GibbsSampler(object):
             else:
                 evidence[variable] = self.model.priors[variable].rvs()
 
+        if self.visualizer and not self.bypass_vis:
+            self.visualizer(self, evidence)
+
         # Setup progressbar
         progressbar_widgets = ['Gibbs sampling:', Percentage(), ' ',
                                Bar('*'), ETA()]
@@ -106,7 +109,7 @@ class GibbsSampler(object):
                     for handler in self.sample_handlers[variable]:
                         handler.update(sample)
 
-            if self.visualizer and i > self.burnin and not self.bypass:
+            if self.visualizer and i > self.burnin and not self.bypass_vis:
                 self.visualizer(self, evidence)
 
             if self.diagnostic_variable:

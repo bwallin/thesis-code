@@ -11,31 +11,31 @@ from pylab import isnan, logical_and
 from scipy import stats, ma, exp, log, nan
 from scipy.stats import bernoulli
 
-#p = sys.path
-#sys.path.insert(0, '/home/bruce/Dropbox/thesis/code/pykalman')
+p = sys.path
+sys.path.insert(0, '/home/bruce/Dropbox/thesis/code/pykalman')
 from pykalman import KalmanFilter
-#sys.path = p
+sys.path = p
 
 from gibbs import Model, GibbsStep
 from misc import forward_filter_backward_sample
 from stats_util import dirichlet, categorical, mvnorm, iid_dist
 
-# Known values from simulation (can use to initialize sampler/skip burn-in)
-p = pickle.load(open('../data/sims/simulation_delta_1.pkl', 'rb'))
-g = p['g']
-h = p['h']
-T = p['T']
-sigma_g = p['sigma_g']
-sigma_h = p['sigma_h']
-# Also needed for known parameters (so load the right pkl dummy!)
-phi = p['phi']
-mu_h = p['mu_h']
-sigma_z_g = p['sigma_z_g']
-sigma_z_h = p['sigma_z_h']
 ############################################################################################################
 def define_model(data):
     # Builds model object
-    m = 3
+    # Known values from simulation (can use to initialize sampler/skip burn-in)
+    p = pickle.load(open('../data/sims/simulation_delta_0.pkl', 'rb'))
+    g = p['g']
+    h = p['h']
+    T = p['T']
+    sigma_g = p['sigma_g']
+    sigma_h = p['sigma_h']
+    # Also needed for known parameters (so load the right pkl dummy!)
+    phi = p['phi']
+    mu_h = p['mu_h']
+    sigma_z_g = p['sigma_z_g']
+    sigma_z_h = p['sigma_z_h']
+
     n = len(data)
     z = data.get('z')
     variable_names = ['g', 'h', 'T', 'p_type', 'sigma_g', 'sigma_h']
@@ -52,15 +52,16 @@ def define_model(data):
                     'b_g': .1,
                     'a_h': 11,
                     'b_h': 40}
-    initials = {'g': -25+zeros(n),
-                'sigma_g': .1,
-                'sigma_h': 1,
-                'T': array([(0 if abs(z[i]+25)>1 else 1) for i in xrange(n)])}
-    #initials = {'sigma_g': sigma_g,
-    #            'sigma_h': sigma_h,
-    #            'T': T[:n],
-    #            'g': g[:n],
-    #            'h': h[:n]}
+    #initials = {'g': -25+zeros(n),
+    #            'sigma_g': .1,
+    #            'sigma_h': 1,
+    #            'T': array([(0 if abs(z[i]+25)>1 else 1) for i in xrange(n)])}
+    initials = {'sigma_g': sigma_g,
+                'sigma_h': sigma_h,
+                'p_type': array((0, .5, .5)),
+                'T': T[:n],
+                'g': g[:n],
+                'h': h[:n]}
     priors = {'p_type': dirichlet(hyper_params['alpha_type']),
               'sigma_g': stats.invgamma(hyper_params['a_g'], scale=hyper_params['b_g']),
               'sigma_h': stats.invgamma(hyper_params['a_h'], scale=hyper_params['b_h']),
@@ -95,25 +96,34 @@ class ground_height_step(GibbsStep):
 
     def sample(self, model, evidence):
         z = evidence['z']
-        T, g, sigma_g = [evidence[var] for var in ['T', 'g', 'sigma_g']]
+        T, g, h, sigma_g = [evidence[var] for var in ['T', 'g', 'h', 'sigma_g']]
         sigma_z_g = model.known_params['sigma_z_g']
+        sigma_z_h = model.known_params['sigma_z_h']
         prior_mu_g, prior_cov_g = [model.hyper_params[var] for var in ['prior_mu_g', 'prior_cov_g']]
         n = len(g)
 
-        z_g = ma.asarray(z.copy())
-        z_g[T != 1] = nan # Necessary?
+        # Must be a more concise way to deal with scalar vs vector
+        g = g.copy().reshape((n,1))
+        h = h.copy().reshape((n,1))
+        z_g = ma.asarray(z.copy().reshape((n,1)))
+        obs_cov = sigma_z_g**2*ones((n,1,1))
+        if sum(T == 0) > 0:
+            z_g[T == 0] = nan
+        if sum(T == 2) > 0:
+            z_g[T == 2] -= h[T == 2]
+            obs_cov[T == 2] = sigma_z_h**2
         z_g[isnan(z_g)] = ma.masked
 
         kalman = self._kalman
-        kalman.initial_state_mean=prior_mu_g[0]
-        kalman.initial_state_covariance=prior_cov_g[0,0]
-        kalman.transition_matrices=1
-        kalman.transition_covariance=sigma_g**2
-        kalman.observation_matrices=1
-        kalman.observation_covariance=sigma_z_g**2
+        kalman.initial_state_mean = array([prior_mu_g[0],])
+        kalman.initial_state_covariance = array([prior_cov_g[0,0],])
+        kalman.transition_matrices = eye(1)
+        kalman.transition_covariance = array([sigma_g**2,])
+        kalman.observation_matrices = eye(1)
+        kalman.observation_covariance = obs_cov
         sampled_g = forward_filter_backward_sample(kalman, z_g)
 
-        return sampled_g
+        return sampled_g.reshape((n,))
 
 
 class canopy_height_step(GibbsStep):
@@ -129,22 +139,28 @@ class canopy_height_step(GibbsStep):
         prior_cov_h = model.hyper_params['prior_cov_h']
         n = len(h)
 
-        z_h = ma.asarray(z.copy())
-        z_h[T != 2] = nan
+        g = g.copy().reshape((n,1))
+        h = h.copy().reshape((n,1))
+        z_h = ma.asarray(z.copy().reshape((n,1)))
+        if sum(T == 0) > 0:
+            z_h[T == 0] = nan
+        if sum(T == 1) > 0:
+            z_h[T == 1] = nan
+        if sum(T == 2) > 0:
+            z_h[T == 2] -= g[T == 2]
         z_h[isnan(z_h)] = ma.masked
 
         kalman = self._kalman
-        kalman.initial_state_mean = prior_mu_h[0]
-        kalman.initial_state_covariance=prior_cov_h[0,0]
-        kalman.transition_matrices=phi
-        kalman.transition_covariance=sigma_h**2
-        kalman.transition_offsets=mu_h*(1-phi)*ones((n, 1))
-        kalman.observation_matrices=1
-        kalman.observation_covariance=sigma_z_h**2
-        kalman.observation_offsets=g
+        kalman.initial_state_mean = array([prior_mu_h[0],])
+        kalman.initial_state_covariance = array([prior_cov_h[0,0],])
+        kalman.transition_matrices = array([phi,])
+        kalman.transition_covariance = array([sigma_h**2,])
+        kalman.transition_offsets = mu_h*(1-phi)*ones((n, 1))
+        kalman.observation_matrices = eye(1)
+        kalman.observation_covariance = array([sigma_z_h**2,])
         sampled_h = forward_filter_backward_sample(kalman, z_h)
 
-        return sampled_h
+        return sampled_h.reshape((n,))
 
 
 class sigma_ground_step(GibbsStep):
@@ -167,7 +183,7 @@ class sigma_height_step(GibbsStep):
 
         h_var_posterior = stats.invgamma(a_h + (n-1)/2., scale=b_h + sum((h[1:] - h[:-1])**2)/2.)
         h_var = h_var_posterior.rvs()
-        return min(sqrt(h_var), 3)
+        return min(sqrt(h_var), 3) # keep sigma_h from possibly blowing up
 
 
 class phi_step(GibbsStep):
@@ -229,7 +245,6 @@ class type_step(GibbsStep):
                 l[2] = p_type[2]*h_norm.pdf(z[i] - g[i])
             p = l/sum(l)
             T[i] = categorical(p).rvs()
-            if T[i] == 2 and z[i] < g[i]: pdb.set_trace()
 
         return T
 

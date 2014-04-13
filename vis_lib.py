@@ -42,9 +42,9 @@ def plot_canopy_estimates(ax, d_shot, g_mean, g_var, h_mean, h_var):
     '''
     Plot ground and canopy surface estimates.
     '''
-    ax.plot(d_shot, g_mean + h_mean, 'k')
-    ax.plot(d_shot, g_mean + h_mean+1.96*sqrt(h_var + g_var), 'k', linewidth=.5)
-    ax.plot(d_shot, g_mean + h_mean-1.96*sqrt(h_var + g_var), 'k', linewidth=.5)
+    ax.plot(d_shot, g_mean + h_mean, 'g-')
+    ax.plot(d_shot, g_mean + h_mean+1.96*sqrt(h_var + g_var), 'g-', linewidth=.5)
+    ax.plot(d_shot, g_mean + h_mean-1.96*sqrt(h_var + g_var), 'g-', linewidth=.5)
 
 
 def plot_type_estimates(ax, d, z, T_mode):

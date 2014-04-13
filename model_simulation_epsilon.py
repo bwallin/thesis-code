@@ -1,5 +1,5 @@
 '''
-No noise, ground and canopy model. Combined g and h dlm. Still can use switching on pqr with T yeah!?
+No noise, ground and canopy model. Combined g and h dlm.
 '''
 from __future__ import division
 import sys
@@ -65,7 +65,7 @@ def define_model(data):
               'sigma_h': stats.invgamma(hyper_params['a_h'], scale=hyper_params['b_h']),
               'T': iid_dist(categorical(hyper_params['alpha_type']), n)}
     FCP_samplers = {'p_type': p_type_step(),
-                    'surfaces': canopy_height_step(),
+                    'surfaces': surfaces_step(),
                     'sigma_g': sigma_ground_step(),
                     'sigma_h': sigma_height_step(),
                     'T': type_step()}
@@ -86,7 +86,7 @@ def define_model(data):
 # Gibbs sampler parts - full conditional posterior/metropolis-hastings samplers
 class surfaces_step(GibbsStep):
     def __init__(self, *args, **kwargs):
-        super(ground_height_step, self).__init__(*args, **kwargs)
+        super(surfaces_step, self).__init__(*args, **kwargs)
         self._kalman = KalmanFilter()
 
     def sample(self, model, evidence):
@@ -143,7 +143,7 @@ class sigma_height_step(GibbsStep):
 class type_step(GibbsStep):
     def sample(self, model, evidence):
         surfaces, p_type, z, sigma_z_g, sigma_z_h = [evidence[var]
-                for var in ['g', 'h', 'p_type', 'z', 'sigma_z_g', 'sigma_z_h']]
+                for var in ['surfaces', 'p_type', 'z', 'sigma_z_g', 'sigma_z_h']]
         g, h = surfaces[:,0], surfaces[:,1]
         N = len(z)
         m = len(p_type)

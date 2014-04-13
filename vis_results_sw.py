@@ -13,6 +13,9 @@ from optparse import OptionParser
 
 from pylab import *
 from matplotlib import pyplot as plt
+from scipy import ma
+
+
 from misc import load_as_frame
 from vis_lib import plot_data, plot_type_estimates, plot_ground_estimates, \
                     plot_canopy_estimates, plot_mcmc_diagnostics, plot_posterior_hist, \
@@ -46,7 +49,7 @@ def main():
     if 'T' in variables:
         T_pmf = results['gibbs_results']['T']['pmf']
         T_mode = [list(T_pmf[i]).index(max(T_pmf[i])) for i in xrange(len(T_pmf))]
-    p_type_samples = array(results['gibbs_results']['p_type']['samples'])
+    #noise_proportion_samples = array(results['gibbs_results']['noise_proportion']['samples'])
     g_mean = results['gibbs_results']['g']['mean']
     n = len(g_mean)
     g_mean = g_mean.reshape((n,))
@@ -61,6 +64,10 @@ def main():
         sigma_h_samples = array(results['gibbs_results']['sigma_h']['samples'])
     if 'phi' in variables:
         phi_samples = array(results['gibbs_results']['phi']['samples'])
+    if  'C' in variables:
+        C_pmf = results['gibbs_results']['C']['pmf']
+        C_mode = array([list(C_pmf[i]).index(max(C_pmf[i])) for i in xrange(len(C_pmf))])
+        canopy_cover = [0, .5, 1]
 
 
     ### Load original data
@@ -74,13 +81,12 @@ def main():
     N = len(z) # Number of data points
 
     # Print out information
-    print "\\begin{verbatim}"
     print "N: %s" % N
     print "burnin: %s" % burnin
     print "subsample: %s" % subsample
     print "iterations: %s" % gibbs_iters
     if validation_data is not None:
-        validation_data['p'], validation_data['q'] = validation_data['proportions'][:2]
+        validation_data['p'] = validation_data['noise_proportion']
         print 'g mean absolute error: %s' % (sum(abs(g_mean-validation_data['g'][:n]))/n)
         print 'g rms error: %s' % sqrt(sum((g_mean-validation_data['g'][:n])**2)/n)
         if 'T' in variables:
@@ -89,7 +95,6 @@ def main():
     if 'h' in variables:
         print 'h mean absolute error: %s' % (sum(abs(h_mean-validation_data['h'][:n]))/n)
         print 'h rms error: %s' % sqrt(sum((h_mean-validation_data['h'][:n])**2)/n)
-    print "\end{verbatim}"
 
 
     # Draw plots
@@ -103,8 +108,15 @@ def main():
     plot_data(ax, data, all_black=False)
     if validation_data is not None:
         plot(d, validation_data['g'][:n], 'b-', alpha=.5)
-        if 'h' in variables:
-            plot(d, validation_data['h'][:n] + validation_data['g'][:n], 'g-', alpha=.5)
+        if 'h' in validation_data:
+            if 'C' in validation_data:
+                for i in range(len(canopy_cover)):
+                    #canopy = ma.asarray(validation_data['h'][:n] + validation_data['g'][:n])
+                    #canopy[validation_data['C'][:n]!=i] = ma.masked
+                    #plot(d, canopy, 'g-', linewidth=canopy_cover[i]*8, alpha=.5)
+                    fill_between(d_shot, validation_data['g'][:n], 
+                                         validation_data['g'][:n]+validation_data['h'][:n], 
+                                         where=validation_data['C'][:n]==i, color='g', alpha=canopy_cover[i]*.8)
     set_window_to_data(ax, data)
     ax.set_title('Data (and validation)')
 
@@ -115,6 +127,12 @@ def main():
     plot_ground_estimates(ax, d_shot, g_mean, g_var)
     if 'h' in variables:
         plot_canopy_estimates(ax, d_shot, g_mean, g_var, h_mean, h_var)
+        if 'C' in variables:
+            for i in range(len(canopy_cover)):
+                #canopy = ma.asarray(h_mean[:n] + g_mean[:n])
+                #canopy[C_mode!=i] = ma.masked
+                #plot(d, canopy, 'g-', linewidth=canopy_cover[i]*8, alpha=.5)
+                fill_between(d_shot, g_mean, g_mean+h_mean, where=C_mode==i, color='g', alpha=canopy_cover[i]*.8)
     set_window_to_data(ax, data)
     ax.set_title('Sampler results')
 
@@ -132,11 +150,14 @@ def main():
         ax = fig_hist.add_subplot(2, 3, i)
         samples = array(results['gibbs_results'][var]['samples'])
         plot_posterior_hist(ax, var, samples, validation_data)
-    if 'T' in variables:
+    if 'T' in variables and 'C' not in variables:
         ax = fig_hist.add_subplot(2, 3, i+1)
         plot_posterior_hist(ax, 'p', p_type_samples[:,0], validation_data)
         ax = fig_hist.add_subplot(2, 3, i+2)
         plot_posterior_hist(ax, 'q', p_type_samples[:,1], validation_data)
+    #elif 'C' in variables:
+    #    ax = fig_hist.add_subplot(2, 3, i+1)
+    #    plot_posterior_hist(ax, 'noise_proportion', noise_proportion_samples[:,0], validation_data)
 
     if options.output_name:
         fig_profile.savefig('../figs/'+options.output_name+'_profile.png')
