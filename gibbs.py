@@ -16,6 +16,7 @@ class Model():
         self.initials = None
         self.FCP_samplers = None
         self.sample_handlers = None
+        self.diagnostic_variable = None
 
     def set_variable_names(self, v_list):
         self.variable_names = v_list
@@ -38,6 +39,9 @@ class Model():
     def set_sample_handlers(self, f_dict):
         self.sample_handlers = f_dict
 
+    def set_diagnostic_variable(self, v):
+        self.diagnostic_variable = v
+
     def set_data(self, d_dict):
         self.data = d_dict
 
@@ -56,12 +60,12 @@ class GibbsSampler(object):
     '''
     def __init__(self, model, iterations, burnin, subsample):
         self.model = model # Model object: contains variables, parameters, distributions
-        self.sample_handlers = defaultdict(list) # Dictionary of handlers for samples generated
+        self.sample_handlers = model.sample_handlers # Dictionary of handlers for samples generated
         self.iterations = iterations
         self.burnin = burnin
         self.subsample = subsample
         self.visualizer = None
-        self.diagnostic_variable = None
+        self.set_diagnostic_variable(model.diagnostic_variable)
         self.bypass_vis = False
 
     def add_sample_handler(self, variable, handler):

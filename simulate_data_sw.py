@@ -9,7 +9,7 @@ import logging
 from pylab import *
 from scipy import stats
 
-from stats_util import categorical
+from stats_util import Categorical
 
 ### Parse command line options
 usage = "usage: %prog [options] model"
@@ -41,19 +41,19 @@ mu_h_0 = param_module.mu_h_0
 sigma_h_0 = param_module.sigma_h_0
 phi = param_module.phi
 mu_h = param_module.mu_h
-sigma_g = param_module.sigma_g
-sigma_z_g = param_module.sigma_z_g
-sigma_h = param_module.sigma_h
-sigma_z_h = param_module.sigma_z_h
+transition_var_g = param_module.transition_var_g
+observation_var_g = param_module.observation_var_g
+transition_var_h = param_module.transition_var_h
+observation_var_h = param_module.observation_var_h
 noise_proportion = param_module.noise_proportion
 canopy_cover = param_module.canopy_cover
 cover_transition_matrix = param_module.cover_transition_matrix
 
-transition_g_rv = stats.norm(0, sigma_g)
-transition_h_rv = stats.norm(0, sigma_h)
-observation_g_rv = stats.norm(0, sigma_z_g)
-observation_h_rv = stats.norm(0, sigma_z_h)
-noise_rv = stats.uniform(loc=-60, scale=120)
+transition_g_rv = stats.norm(0, sqrt(transition_var_g))
+transition_h_rv = stats.norm(0, sqrt(transition_var_h))
+observation_g_rv = stats.norm(0, observation_var_g)
+observation_h_rv = stats.norm(0, observation_var_h)
+noise_rv = stats.uniform(loc=-50, scale=100)
 
 T = zeros((n,), dtype=int)
 C = zeros((n,), dtype=int)
@@ -63,11 +63,11 @@ h = zeros((n,))
 # Initialize
 g[0] = stats.norm(mu_g_0, sigma_g_0).rvs()
 h[0] = stats.norm(mu_h_0, sigma_h_0).rvs()
-C[0] = categorical((1/3., 1/3., 1/3.)).rvs()
+C[0] = Categorical((1/3., 1/3., 1/3.)).rvs()
 p = array([noise_proportion,
            (1-canopy_cover[C[0]])*(1-noise_proportion),
            (canopy_cover[C[0]])*(1-noise_proportion)])
-T[0] = categorical(p).rvs()
+T[0] = Categorical(p).rvs()
 if T[0] == 0:
     z = noise_rv.rvs()
 if T[0] == 1:
@@ -77,11 +77,11 @@ if T[0] == 2:
 
 data = [[0, 0, z, 0, T[0]]]
 for i in range(1, n):
-    C[i] = categorical(cover_transition_matrix[C[i-1],:]).rvs()
+    C[i] = Categorical(cover_transition_matrix[C[i-1],:]).rvs()
     p = array([noise_proportion,
                (1-canopy_cover[C[i]])*(1-noise_proportion),
                (canopy_cover[C[i]])*(1-noise_proportion)])
-    T[i] = categorical(p).rvs()
+    T[i] = Categorical(p).rvs()
     g[i] = g[i-1] + transition_g_rv.rvs()
     h[i] = phi*(h[i-1] - mu_h) + mu_h + transition_h_rv.rvs()
     if T[i] == 0:
@@ -108,10 +108,10 @@ with open('../data/%s.pkl'%options.name, 'wb') as f:
                'g': g,
                'phi': phi,
                'mu_h': mu_h,
-               'sigma_g': sigma_g,
-               'sigma_z_g': sigma_z_g,
-               'sigma_h': sigma_h,
-               'sigma_z_h': sigma_z_h,
+               'transition_var_g': transition_var_g,
+               'observation_var_g': observation_var_g,
+               'transition_var_h': transition_var_h,
+               'observation_var_h': observation_var_h,
                'mu_g_0': mu_g_0,
                'sigma_g_0': sigma_g_0,
                'mu_h_0': mu_h_0,

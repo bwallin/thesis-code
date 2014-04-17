@@ -3,13 +3,13 @@ from collections import defaultdict
 import operator
 import math
 
-from numpy import cumsum, zeros, dot
+from numpy import cumsum, zeros, dot, array
 from numpy import exp, power, log, pi
 from numpy.linalg import det, inv
 from numpy.random import dirichlet as dirichlet_rvs
 from numpy.random import multivariate_normal, rand
 
-class dirichlet():
+class Dirichlet():
     '''
     Dirichlet random variable.
     '''
@@ -27,12 +27,12 @@ class dirichlet():
                reduce(operator.mul, [x[i]**(alpha[i]-1.0) for i in range(len(alpha))]))
 
 
-class categorical():
+class Categorical():
     '''
     Categorical random variable.
     '''
     def __init__(self, probs):
-        self.pmf = probs
+        self.pmf = array(probs)/sum(probs)
 
     def rvs(self, size=1):
         cdf = cumsum(self.pmf)
@@ -44,7 +44,7 @@ class categorical():
         return rvs
 
 
-class mvnorm():
+class MVNormal():
     def __init__(self, mean, cov):
         self.mean = mean
         self.cov = cov
@@ -63,7 +63,7 @@ class mvnorm():
         return part1*part2*part3
 
 
-class iid_dist():
+class IID():
     def __init__(self, distribution, n):
         self.distribution = distribution
         self.n = n
@@ -72,6 +72,43 @@ class iid_dist():
         return self.distribution.rvs(self.n)
 
 
+class Multinomial(object):
+  def __init__(self, params):
+    self._params = params
+
+
+  def pmf(self, counts):
+    if not(len(counts)==len(self._params)):
+      raise ValueError("Dimensionality of count vector is incorrect")
+
+    prob = 1.
+    for i,c in enumerate(counts):
+      prob *= self._params[i]**counts[i]
+
+    return prob * math.exp(self._log_multinomial_coeff(counts))
+
+
+  def log_pmf(self,counts):
+    if not(len(counts)==len(self._params)):
+      raise ValueError("Dimensionality of count vector is incorrect")
+
+    prob = 0.
+    for i,c in enumerate(counts):
+      prob += counts[i]*math.log(self._params[i])
+
+    return prob + self._log_multinomial_coeff(counts)
+
+
+  def _log_multinomial_coeff(self, counts):
+    return self._log_factorial(sum(counts)) - sum(self._log_factorial(c)
+                                                    for c in counts)
+
+  def _log_factorial(self, num):
+    if not round(num)==num and num > 0:
+      raise ValueError("Can only compute the factorial of positive ints")
+    return sum(math.log(n) for n in range(1,num+1))
+
+################################################################################
 class online_meanvar():
     def __init__(self):
         self.mean = None

@@ -13,7 +13,6 @@ from scipy import array
 
 # local imports
 from gibbs import GibbsSampler
-from gibbs import raw_sample_handler, indep_meanvar_handler, discrete_handler
 from misc import load_as_frame
 
 def main():
@@ -79,21 +78,6 @@ def main():
         sampler.add_visualizer(model_module.visualize_gibbs)
     if options.visualize_priors:
         model_module.visualize_priors(model.priors)
-
-
-    sampler.add_sample_handler('p_type', raw_sample_handler())
-    sampler.add_sample_handler('noise_proportion', raw_sample_handler())
-    sampler.add_sample_handler('g', indep_meanvar_handler())
-    sampler.add_sample_handler('h', indep_meanvar_handler())
-    sampler.add_sample_handler('surfaces', indep_meanvar_handler())
-    sampler.add_sample_handler('phi', raw_sample_handler())
-    sampler.add_sample_handler('sigma_g', raw_sample_handler())
-    sampler.add_sample_handler('sigma_h', raw_sample_handler())
-    sampler.add_sample_handler('transition_var_g', raw_sample_handler())
-    sampler.add_sample_handler('transition_var_h', raw_sample_handler())
-    sampler.add_sample_handler('T', discrete_handler(support=range(3), length=n_points))
-    sampler.add_sample_handler('C', discrete_handler(support=range(3), length=n_points))
-    sampler.set_diagnostic_variable('transition_var_g')
 
     # Begin sampling
     start_time = time.time()

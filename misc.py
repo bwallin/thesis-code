@@ -7,7 +7,7 @@ from scipy import array, zeros, dot, transpose, matrix
 from scipy import stats, sqrt, cumsum
 from scipy import loadtxt
 from scipy.linalg import norm, inv
-from stats_util import mvnorm
+from stats_util import MVNormal
 import pandas
 
 def gen_shot_ids(frame, tol=.05):
@@ -55,6 +55,8 @@ def load_as_frame(filepath, start=None, end=None):
 
     # Assign id to points detected from same pulse
     frame['shot_id'] = gen_shot_ids(frame)
+    frame[['shot_id', 'index', 'signal_flag']] = frame[['shot_id', 'index', 'signal_flag']].astype(int)
+    frame.filepath = filepath
 
     return frame
 
@@ -84,13 +86,13 @@ def forward_filter_backward_sample(kf, y):
 
     # Sample last state, and iterate backwards
     x = zeros((n_obs, n_states))
-    x[-1] = mvnorm(x_f[-1], P_f[-1]).rvs()
+    x[-1] = MVNormal(x_f[-1], P_f[-1]).rvs()
     for i in range(n_obs-2, -1, -1):
         J = dot(P_f[i], dot(transpose(G), inv(matrix(P_p[i+1]))))
         m = x_f[i] + dot(J, x[i+1] - x_p[i+1])
         V = P_f[i] - dot(J, dot(P_p[i+1], transpose(J)))
 
-        N = mvnorm(m, V)
+        N = MVNormal(m, V)
         x[i] = N.rvs()
 
     return x

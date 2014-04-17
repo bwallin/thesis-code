@@ -7,7 +7,7 @@ import pdb
 import pickle
 
 from pylab import array, zeros, mean, ones, eye, sqrt
-from scipy import stats, ma, exp, log, nan, isnan, inf, isinf, logical_or
+from scipy import stats, ma, exp, log, nan, isnan, inf, isinf, logical_or, logical_and
 from scipy.stats import bernoulli
 from sklearn.hmm import MultinomialHMM
 
@@ -17,82 +17,50 @@ from pykalman import KalmanFilter
 sys.path = p
 
 from gibbs import Model, GibbsStep
+from gibbs import raw_sample_handler, indep_meanvar_handler, discrete_handler
 from misc import forward_filter_backward_sample
-from stats_util import dirichlet, categorical, mvnorm, iid_dist
+from stats_util import Dirichlet, Categorical, MVNormal, IID, Multinomial
+
 
 ############################################################################################################
-validation_filename = '../data/sims/simulation_zeta_3.pkl'
+#validation_filename = '../data/sims/simulation_zeta_3.pkl'
 def define_model(data):
     # Builds model object
-    if validation_filename is not None:
-        # Known values from simulation (can use to initialize sampler/skip burn-in)
-        p = pickle.load(open(validation_filename, 'rb'))
-        g = p['g']
-        h = p['h']
-        T = p['T']
-        C = p['C']
-        noise_proportion = p['noise_proportion']
-        transition_var_g = p['sigma_g']**2
-        transition_var_h = p['sigma_h']**2
-        # Also needed for known parameters (so load the right pkl dummy!)
-        phi = p['phi']
-        mu_h = p['mu_h']
-        observation_var_g = p['sigma_z_g']**2
-        observation_var_h = p['sigma_z_h']**2
-        canopy_cover = p['canopy_cover']
-        cover_transition_matrix = p['cover_transition_matrix']
-        z_min, z_max = -60, 60
-    else:
-        phi = None
-        mu_h = None
-        observation_var_g = None
-        observation_var_h = None
-        canopy_cover = array([.0, .5, 1.]) 
-        cover_transition_matrix = array([[.99, .005, .005], [.005, .99, .005], [.005, .005, .99]])
-        z_min, z_max = -60, 60
 
-    z = data.get('z')
+    # Data and dimensions
+    N = len(data) # Number of data points
     shot_id = data.get('shot_id')
-    N = len(z) # Number of data points
     n = len(set(shot_id)) # Number of shots
+    print data.filepath
+
+    if 'Cedar2' in data.filepath:
+        import params_cedar2 as params
+    elif 'Cedar4' in data.filepath:
+        import params_cedar4 as params
+    elif 'SERC1' in data.filepath:
+        import params_serc1 as params
+    elif 'SERC3' in data.filepath:
+        import params_serc3 as params
+    elif 'zeta' in data.filepath:
+        import params_zeta as params
+    else:
+        import params_default as params 
+    # Parameters and initialization values
+    known_params = params.get_known_params(data)
+    initials = params.get_initials(data)
+    hyper_params = params.get_hyper_params(data)
+    m_cover = params.m_cover
+    m_type = params.m_type
+
 
     # Variables to be sampled
     variable_names = ['g', 'h', 'T', 'C', 'noise_proportion', 'transition_var_g', 'transition_var_h']
 
-    known_params = {'observation_var_g': observation_var_g, # observation stdev
-                    'observation_var_h': observation_var_h,
-                    'mu_h': mu_h, # mean canopy
-                    'phi': phi, # canopy autoreg param
-                    'z_min': z_min,
-                    'z_max': z_max,
-                    'canopy_cover': canopy_cover, # possible canopy cover states
-                    'cover_transition_matrix': cover_transition_matrix} # canopy transition matrix
-    hyper_params = {'g': {'mu': zeros(n), 'cov': 1000*eye(n)}, # mvn prior
-                    'h': {'mu': zeros(n), 'cov': 1000*eye(n)}, # mvn prior
-                    'T': {'p': array([1/3., 1/3., 1/3.])}, # iid categorical prior
-                    'C': {'p': array([1/3., 1/3., 1/3.])}, # iid categorical prior
-                    'noise_proportion':{'alpha': array((1.,1.))}, # dirichlet prior
-                    'transition_var_g': {'a': 11, 'b': .1, 'max': 1}, # inv-gamma prior
-                    'transition_var_h': {'a': 11, 'b': 40, 'max': 9}} # inv-gamma prior
-    initials = {'g': -25+zeros(n),
-                'h': 30*ones(n),
-                'T': array([(0 if abs(z[i]+25)>1 else 1) for i in xrange(n)]),
-                'C': zeros(n, dtype=int),
-                'noise_proportion': .2,
-                'transition_var_g': .1,
-                'transition_var_h': 1}
-    initials = {'g': g[:N],
-                'h': h[:N],
-                'C': C[:N],
-                'T': T[:N],
-                'noise_proportion': noise_proportion,
-                'transition_var_g': transition_var_g,
-                'transition_var_h': transition_var_h}
-    priors = {'g': mvnorm(hyper_params['g']['mu'], hyper_params['g']['cov']),
-              'h': mvnorm(hyper_params['h']['mu'], hyper_params['h']['cov']),
-              'C': iid_dist(categorical(hyper_params['C']['p']), N),
-              'T': iid_dist(categorical(hyper_params['T']['p']), N),
-              'noise_proportion': dirichlet(hyper_params['noise_proportion']['alpha']),
+    priors = {'g': MVNormal(hyper_params['g']['mu'], hyper_params['g']['cov']),
+              'h': MVNormal(hyper_params['h']['mu'], hyper_params['h']['cov']),
+              'C': IID(Categorical(hyper_params['C']['p']), n),
+              'T': IID(Categorical(hyper_params['T']['p']), N),
+              'noise_proportion': Dirichlet(hyper_params['noise_proportion']['alpha']),
               'transition_var_g': stats.invgamma(hyper_params['transition_var_g']['a'], scale=hyper_params['transition_var_g']['b']),
               'transition_var_h': stats.invgamma(hyper_params['transition_var_h']['a'], scale=hyper_params['transition_var_h']['b'])}
     FCP_samplers = {'g': ground_elev_step(),
@@ -102,6 +70,16 @@ def define_model(data):
                     'noise_proportion': noise_proportion_step(),
                     'transition_var_g': transition_var_g_step(),
                     'transition_var_h': transition_var_h_step()}
+    sample_handlers = {'g': [indep_meanvar_handler()],
+                       'h': [indep_meanvar_handler()],
+                       'T': [discrete_handler(support=range(m_type), length=N)],
+                       'C': [discrete_handler(support=range(m_cover), length=n)],
+                       'noise_proportion': [raw_sample_handler()],
+                       'transition_var_g': [raw_sample_handler()],
+                       'transition_var_h': [raw_sample_handler()]}
+    diagnostic_variable = 'noise_proportion'
+
+
 
     model = Model()
     model.set_variable_names(variable_names)
@@ -110,6 +88,8 @@ def define_model(data):
     model.set_priors(priors)
     model.set_initials(initials)
     model.set_FCP_samplers(FCP_samplers)
+    model.set_sample_handlers(sample_handlers)
+    model.set_diagnostic_variable(diagnostic_variable)
     model.set_data(data)
 
     return model
@@ -141,14 +121,22 @@ class ground_elev_step(GibbsStep):
         g = g.copy().reshape((n, 1))
         h = h.copy().reshape((n, 1))
 
-        z_g = ma.asarray(z.copy().reshape((N, 1)))
-        z_g[T == 0] = nan # mask noise points
-        z_g[T == 0] = ma.masked
-        z_g[T == 2] -= h[T == 2] # get ground measurement from canopy top
+        z_g = ma.asarray(nan + zeros((n, 1)))
+        obs_cov = ma.asarray(inf + zeros((n, 1, 1)))
+        for i in xrange(n):
+            z_i = z[shot_id == i]
+            T_i = T[shot_id == i]
+            if 1 in T_i:
+                # Sample mean and variance for multiple observations
+                n_obs = sum(T_i == 1)
+                z_g[i] = mean(z_i[T_i == 1]) 
+                obs_cov[i] = observation_var_g/n_obs
+            elif 2 in T_i:
+                n_obs = sum(T_i == 2)
+                z_g[i] = mean(z_i[T_i == 2]) - h[i]
+                obs_cov[i] = observation_var_h/n_obs
 
-        obs_cov = ma.asarray(inf + zeros((n,1,1)))
-        obs_cov[T == 1] = observation_var_g
-        obs_cov[T == 2] = observation_var_h
+        z_g[isnan(z_g)] = ma.masked
         obs_cov[isinf(obs_cov)] = ma.masked
 
         kalman = self._kalman
@@ -188,12 +176,18 @@ class canopy_height_step(GibbsStep):
         g = g.copy().reshape((n,1))
         h = h.copy().reshape((n,1))
 
-        z_h = ma.asarray(z.copy().reshape((N, 1)))
-        z_h[logical_or(T == 0, T == 1)] = nan # mask noise and ground values
-        z_h[isnan(z_h)] = ma.masked # how missing values are formatted in pykalman
-
+        z_h = ma.asarray(nan + zeros((n, 1)))
         obs_cov = ma.asarray(inf + zeros((n, 1, 1)))
-        obs_cov[T == 2] = observation_var_h
+        for i in xrange(n):
+            z_i = z[shot_id == i]
+            T_i = T[shot_id == i]
+            if 2 in T_i:
+                # Sample mean and variance for multiple observations
+                n_obs = sum(T_i == 2)
+                z_h[i] = mean(z_i[T_i == 2]) - g[i]
+                obs_cov[i] = observation_var_h/n_obs
+
+        z_h[isnan(z_h)] = ma.masked
         obs_cov[isinf(obs_cov)] = ma.masked
 
         kalman = self._kalman
@@ -246,12 +240,12 @@ class type_step(GibbsStep):
     def sample(self, model, evidence):
         g = evidence['g']
         h = evidence['h']
-        noise_proportion = evidence['noise_proportion']
+        C = evidence['C']
         z = evidence['z']
+        shot_id = evidence['shot_id']
+        noise_proportion = evidence['noise_proportion']
         observation_var_g = evidence['observation_var_g']
         observation_var_h = evidence['observation_var_h']
-        C = evidence['C']
-        shot_id = evidence['shot_id']
 
         canopy_cover = model.known_params['canopy_cover']
         z_min = model.known_params['z_min']
@@ -263,38 +257,61 @@ class type_step(GibbsStep):
         for i in xrange(N):
             l = zeros(3)
             l[0] = noise_proportion*noise_rv.pdf(z[i])
-            g_norm = stats.norm(g[shot_id[i]], observation_var_g)
+            g_norm = stats.norm(g[shot_id[i]], sqrt(observation_var_g))
             l[1] = (1-noise_proportion)*(1-canopy_cover[C[shot_id[i]]])*g_norm.pdf(z[i])
-            h_norm = stats.norm(h[shot_id[i]], observation_var_h)
+            h_norm = stats.norm(h[shot_id[i]], sqrt(observation_var_h))
             l[2] = (1-noise_proportion)*(canopy_cover[C[shot_id[i]]])*h_norm.pdf(z[i] - g[shot_id[i]])
             p = l/sum(l)
-            T[i] = categorical(p).rvs()
+            T[i] = Categorical(p).rvs()
 
         return T
 
 
 class cover_step(GibbsStep):
     def sample(self, model, evidence):
-        noise_proportion, T, C = [evidence[var] for var in ['noise_proportion', 'T', 'C']]
-        canopy_cover, cover_transition_matrix = [model.known_params[var] for var in ['canopy_cover', 'cover_transition_matrix']]
-        n = len(T)
-        m = len(canopy_cover)
-        emissions = array([[noise_proportion, (1-noise_proportion)*(1-canopy_cover[i]), (1-noise_proportion)*(canopy_cover[i])] for i in xrange(m)])
-        C[0] = categorical(cover_transition_matrix[:,C[1]]*emissions[:,T[0]]).rvs()
+        noise_proportion = evidence['noise_proportion'] 
+        T = evidence['T'] 
+        C = evidence['C']
+        shot_id = evidence['shot_id']
+
+        canopy_cover = model.known_params['canopy_cover']
+        cover_transition_matrix = model.known_params['cover_transition_matrix']
+
+        n = len(C)
+        m_type = 3
+        m_cover = len(canopy_cover)
+
+        emissions = array([[noise_proportion, 
+                            (1-noise_proportion)*(1-canopy_cover[i]), 
+                            (1-noise_proportion)*(canopy_cover[i])] for i in xrange(m_cover)])
+
+
+        counts = [sum(T[shot_id == 0] == j) for j in range(m_type)]
+        emission_likes = [Multinomial(emissions[j,:]).pmf(counts) for j in xrange(m_cover)]
+        transition_likes = cover_transition_matrix[:,C[1]]
+        C[0] = Categorical(emission_likes * transition_likes).rvs()
         for i in xrange(1, n-1):
-            C[i] = categorical(cover_transition_matrix[C[i-1],:]*cover_transition_matrix[:,C[i+1]]*emissions[:,T[i]]).rvs()
-        C[-1] = categorical(cover_transition_matrix[C[-2],:]*emissions[:,T[-1]]).rvs()
+            counts = [sum(T[shot_id == i] == j) for j in range(m_type)]
+            emission_likes = [Multinomial(emissions[j,:]).pmf(counts) for j in xrange(m_cover)]
+            transition_likes = cover_transition_matrix[C[i-1],:] * cover_transition_matrix[:,C[i+1]]
+            C[i] = Categorical(emission_likes * transition_likes).rvs()
+        counts = [sum(T[shot_id == (n-1)] == j) for j in range(m_type)]
+        emission_likes = [Multinomial(emissions[j,:]).pmf(counts) for j in xrange(m_cover)]
+        transition_likes = cover_transition_matrix[:,C[-2]]
+        C[-1] = Categorical(emission_likes * transition_likes).rvs()
 
         return C
 
 
 class noise_proportion_step(GibbsStep):
     def sample(self, model, evidence):
-        alpha = model.hyper_params['noise_proportion']['alpha']
         T = evidence['T']
-        n = len(T)
+
+        alpha = model.hyper_params['noise_proportion']['alpha']
+
+        N = len(T)
         n_noise = sum(T==0)
-        return dirichlet(alpha + (n_noise, n - n_noise)).rvs()[0]
+        return Dirichlet(alpha + (n_noise, N - n_noise)).rvs()[0]
 
 
 def visualize_gibbs(sampler, evidence):
@@ -302,6 +319,7 @@ def visualize_gibbs(sampler, evidence):
     z, T, C, d, g, h, transition_var_g, transition_var_h, canopy_cover = [evidence[var] for var in ['z', 'T', 'C', 'd', 'g', 'h', 'transition_var_g', 'transition_var_h', 'canopy_cover']]
     g = g.reshape((len(g), ))
     h = h.reshape((len(h), ))
+    dists = sorted(list(set(d)))
 
     print "transition_var_g: %s" % transition_var_g
     print "transition_var_h: %s" % transition_var_h
@@ -312,15 +330,14 @@ def visualize_gibbs(sampler, evidence):
     plt.plot(d[T==0], z[T==0], 'r.')
     plt.plot(d[T==1], z[T==1], 'k.')
     plt.plot(d[T==2], z[T==2], 'g.')
-    plt.plot(d, g, 'k-', linewidth=3, alpha=.5)
+    plt.plot(dists, g, 'k-', linewidth=3, alpha=.5)
     for i in xrange(len(canopy_cover)):
         canopy = ma.asarray(g+h)
         canopy[C!=i] = ma.masked
-        plt.plot(d, canopy, 'g-', linewidth=3, alpha=canopy_cover[i]*.5)
-    #plt.fill_between(d, g, g+h, color='g', alpha=array(canopy_cover)[C])
+        #plt.plot(dists, canopy, 'g-', linewidth=3, alpha=canopy_cover[i]*.7)
+        plt.fill_between(dists, g, canopy, color='g', alpha=canopy_cover[i]*.7)
     def moveon(event):
         plt.close()
     fig.canvas.mpl_connect('key_press_event', moveon)
     plt.show()
-
 

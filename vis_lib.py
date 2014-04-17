@@ -20,7 +20,7 @@ def data_plot(ax, data, elim_noise=False, all_black=False, marker='.', **kwargs)
 
 
 def set_window_to_data(ax, data):
-    ax.set_xlim([min(data['x']), max(data['x'])])
+    ax.set_xlim([min(data['d']), max(data['d'])])
     ax.set_ylim([min(data['z']), max(data['z'])])
 
 
@@ -104,6 +104,6 @@ def plot_posterior_hist(ax, variable, samples, validation_data=None):
     histogram = ax.hist(samples, 20)
     if validation_data:
         axvline(x=validation_data[variable])
-        ax.set_xlabel(variable)
+    ax.set_xlabel(variable)
 
 
