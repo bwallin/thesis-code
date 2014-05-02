@@ -23,9 +23,9 @@ from stats_util import Dirichlet, Categorical, MVNormal, IID, Multinomial
 
 
 ############################################################################################################
-#validation_filename = '../data/sims/simulation_zeta_3.pkl'
 def define_model(data):
-    # Builds model object
+    # Builds model object 
+    # Encapsulates everything the gibbs sampler needs to know about.
 
     # Data and dimensions
     N = len(data) # Number of data points
@@ -41,10 +41,15 @@ def define_model(data):
         import params_serc1 as params
     elif 'SERC3' in data.filepath:
         import params_serc3 as params
+    elif 'SERC5' in data.filepath:
+        import params_serc5 as params
     elif 'zeta' in data.filepath:
         import params_zeta as params
+    elif 'eta' in data.filepath:
+        import params_eta as params
     else:
         import params_default as params 
+
     # Parameters and initialization values
     known_params = params.get_known_params(data)
     initials = params.get_initials(data)
@@ -101,6 +106,7 @@ class ground_elev_step(GibbsStep):
     def __init__(self, *args, **kwargs):
         super(ground_elev_step, self).__init__(*args, **kwargs)
         self._kalman = KalmanFilter()
+        self.counter = 10
 
     def sample(self, model, evidence):
         z = evidence['z']
@@ -112,29 +118,34 @@ class ground_elev_step(GibbsStep):
 
         observation_var_g = model.known_params['observation_var_g']
         observation_var_h = model.known_params['observation_var_h']
-        prior_mu_g = model.hyper_params['g']['mu']
-        prior_cov_g = model.hyper_params['g']['cov']
+        prior_mu_g = model.hyper_params['g']['mu'] 
+        prior_cov_g = model.hyper_params['g']['cov'] 
         N = len(z)
         n = len(g)
 
         # Make g, h, and z vector valued to avoid ambiguity
         g = g.copy().reshape((n, 1))
         h = h.copy().reshape((n, 1))
-
+        
         z_g = ma.asarray(nan + zeros((n, 1)))
         obs_cov = ma.asarray(inf + zeros((n, 1, 1)))
         for i in xrange(n):
             z_i = z[shot_id == i]
             T_i = T[shot_id == i]
-            if 1 in T_i:
+            if 1 in T_i and 2 in T_i:
                 # Sample mean and variance for multiple observations
-                n_obs = sum(T_i == 1)
-                z_g[i] = mean(z_i[T_i == 1]) 
-                obs_cov[i] = observation_var_g/n_obs
+                n_obs_g, n_obs_h = sum(T_i == 1), sum(T_i == 2)
+                obs_cov_g, obs_cov_h = observation_var_g/n_obs_g, observation_var_h/n_obs_h
+                z_g[i] = (mean(z_i[T_i == 1])/obs_cov_g + mean(z_i[T_i == 2] - h[i])/obs_cov_h)/(1/obs_cov_g + 1/obs_cov_h)
+                obs_cov[i] = 1/(1/obs_cov_g + 1/obs_cov_h)
+            elif 1 in T_i:
+                n_obs_g = sum(T_i == 1) 
+                z_g[i] = mean(z_i[T_i == 1])
+                obs_cov[i] = observation_var_g/n_obs_g
             elif 2 in T_i:
-                n_obs = sum(T_i == 2)
-                z_g[i] = mean(z_i[T_i == 2]) - h[i]
-                obs_cov[i] = observation_var_h/n_obs
+                n_obs_h = sum(T_i == 2) 
+                z_g[i] = mean(z_i[T_i == 2] - h[i])
+                obs_cov[i] = observation_var_h/n_obs_h
 
         z_g[isnan(z_g)] = ma.masked
         obs_cov[isinf(obs_cov)] = ma.masked
@@ -233,6 +244,7 @@ class transition_var_h_step(GibbsStep):
 
         h_var_posterior = stats.invgamma(a + (n-1)/2., scale=b + sum((h[1:] - h[:-1])**2)/2.)
         h_var = h_var_posterior.rvs()
+
         return min(h_var, max_var)
 
 
@@ -260,7 +272,8 @@ class type_step(GibbsStep):
             g_norm = stats.norm(g[shot_id[i]], sqrt(observation_var_g))
             l[1] = (1-noise_proportion)*(1-canopy_cover[C[shot_id[i]]])*g_norm.pdf(z[i])
             h_norm = stats.norm(h[shot_id[i]], sqrt(observation_var_h))
-            l[2] = (1-noise_proportion)*(canopy_cover[C[shot_id[i]]])*h_norm.pdf(z[i] - g[shot_id[i]])
+            if z[i] > g[shot_id[i]]:
+                l[2] = (1-noise_proportion)*(canopy_cover[C[shot_id[i]]])*h_norm.pdf(z[i] - g[shot_id[i]])
             p = l/sum(l)
             T[i] = Categorical(p).rvs()
 

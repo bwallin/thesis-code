@@ -66,8 +66,6 @@ def main():
     # Build model and load data
     data = load_as_frame(data_filename, start=options.start, end=options.end)
     model = model_module.define_model(data)
-    n_points = len(data)
-    n_shots = len(set(data['shot_id']))
 
     # Setup gibbs sampler
     sampler = GibbsSampler(model=model,

@@ -1,10 +1,10 @@
 # Parameters and initialization values for Cedar4 data
-from scipy import array, ones, eye
+from scipy import array, ones, eye, arange
 
 phi = .95
 mu_h = 10
-observation_var_g = 1 
-observation_var_h = 9 
+observation_var_g = .25
+observation_var_h = 6 
 noise_proportion = .36
 canopy_cover = array([0,.25, .5, .75]) 
 cover_transition_matrix = array([[.99, .0033, .0033, .0033], 
@@ -29,10 +29,10 @@ def get_known_params(data):
 def get_initials(data):
     N = len(data)
     n = len(set(data.shot_id))
-    g_guess = 15
-    initials = {'g': g_guess*ones(n),
+    g_guess = 15*arange(n)/n 
+    initials = {'g': g_guess,
                 'h': mu_h*2*ones(n),
-                'T': abs(array(data.z) - g_guess) < 2,
+                'T': abs(array(data.z) - g_guess[data.shot_id]) < 2,
                 'noise_proportion': .36,
                 'transition_var_g': .1,
                 'transition_var_h': 1}

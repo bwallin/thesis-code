@@ -1,10 +1,14 @@
 import pdb
 from collections import defaultdict
+import logging
 
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from scipy import zeros, sum, dot, transpose, diag, mean
 
 from stats_util import online_meanvar
+
+log_level = logging.ERROR
+logging.basicConfig(level=log_level, format='%(asctime)s %(message)s')
 
 class Model():
     def __init__(self):
@@ -92,8 +96,10 @@ class GibbsSampler(object):
         for variable in self.model.variable_names:
             if self.model.initials and variable in self.model.initials:
                 evidence[variable] = self.model.initials[variable]
+                logging.debug('Using initial for %s' % variable)
             else:
                 evidence[variable] = self.model.priors[variable].rvs()
+                logging.debug('Sampling %s from priors' % variable)
 
         if self.visualizer and not self.bypass_vis:
             self.visualizer(self, evidence)
@@ -105,15 +111,17 @@ class GibbsSampler(object):
 
         # Let the sampling begin
         for i in xrange(self.iterations):
-            for variable, FCP_sample in self.model.FCP_samplers.iteritems():
-                sample = FCP_sample(self.model, evidence)
+            for variable in self.model.variable_names:
+                logging.debug('Sampling %s from FCP'%variable)
+                FCP_draw_sample = self.model.FCP_samplers[variable]
+                sample = FCP_draw_sample(self.model, evidence)
                 evidence[variable] = sample
                 if i > self.burnin and i % self.subsample == 0:
                     # Pass sample to its handlers
                     for handler in self.sample_handlers[variable]:
                         handler.update(sample)
 
-            if self.visualizer and i > self.burnin and not self.bypass_vis:
+            if self.visualizer and i >= self.burnin and not self.bypass_vis:
                 self.visualizer(self, evidence)
 
             if self.diagnostic_variable:
@@ -187,7 +195,7 @@ class discrete_handler(generic_sample_handler):
         self.counts[range(self.length), x.astype('int')] += 1
 
     def result(self):
-        return {'pmf': dot(diag(1./sum(self.counts, axis=1)),
-                           self.counts)}
+        totals = sum(self.counts, axis=1)
+        return {'pmf': [1./totals[i]*self.counts[i,:] for i in xrange(self.length)]}
 
 

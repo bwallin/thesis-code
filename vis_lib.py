@@ -12,9 +12,9 @@ def data_plot(ax, data, elim_noise=False, all_black=False, marker='.', **kwargs)
     if len(data_noise > 0):
         x_noise, z_noise = data_noise['d'], data_noise['z']
 
-    lines.extend(ax.plot(x_sig, z_sig, 'k'+marker, **kwargs))
+    lines.extend(ax.plot(x_sig, z_sig, 'k'+marker, label="signal", **kwargs))
     if not elim_noise and len(data_noise) > 0:
-        lines.extend(ax.plot(x_noise, z_noise, 'r'+marker if not all_black else 'k.', **kwargs))
+        lines.extend(ax.plot(x_noise, z_noise, 'r'+marker if not all_black else 'k.', label=None if all_black else "noise", **kwargs))
 
     return lines
 
@@ -28,39 +28,47 @@ def plot_data(ax, data, all_black=True):
     '''
     Plot true data.
     '''
-    data_plot(ax, data, elim_noise=False, all_black=all_black, marker='.', markersize=3)
+    lines = data_plot(ax, data, elim_noise=False, all_black=all_black, marker='.', markersize=3)
+    return lines
 
 def plot_ground_estimates(ax, d_shot, g_mean, g_var):
     '''
     Plot ground and canopy surface estimates.
     '''
-    ax.plot(d_shot, g_mean, 'k')
-    ax.plot(d_shot, g_mean+1.96*sqrt(g_var), 'k', linewidth=.5)
-    ax.plot(d_shot, g_mean-1.96*sqrt(g_var), 'k', linewidth=.5)
+    lines = []
+    lines += ax.plot(d_shot, g_mean, 'k', label="mean ground")
+    lines += ax.plot(d_shot, g_mean+1.96*sqrt(g_var), 'k', linewidth=.5)
+    lines += ax.plot(d_shot, g_mean-1.96*sqrt(g_var), 'k', linewidth=.5)
+    return lines
 
 def plot_canopy_estimates(ax, d_shot, g_mean, g_var, h_mean, h_var):
     '''
     Plot ground and canopy surface estimates.
     '''
-    ax.plot(d_shot, g_mean + h_mean, 'g-')
-    ax.plot(d_shot, g_mean + h_mean+1.96*sqrt(h_var + g_var), 'g-', linewidth=.5)
-    ax.plot(d_shot, g_mean + h_mean-1.96*sqrt(h_var + g_var), 'g-', linewidth=.5)
+    lines = []
+    lines += ax.plot(d_shot, g_mean + h_mean, 'g-', label="mean canopy")
+    lines += ax.plot(d_shot, g_mean + h_mean+1.96*sqrt(h_var + g_var), 'g-', linewidth=.5)
+    lines += ax.plot(d_shot, g_mean + h_mean-1.96*sqrt(h_var + g_var), 'g-', linewidth=.5)
+    return lines
 
 
 def plot_type_estimates(ax, d, z, T_mode):
     '''
     Plot type modes.
     '''
+    lines = []
     N = len(z)
     colors = {0:'r', 1:'k', 2:'g'}
     for i in range(N):
-        ax.plot([d[i]], [z[i]], '.', color=colors[T_mode[i]], markersize=3)
+        lines += ax.plot([d[i]], [z[i]], '.', color=colors[T_mode[i]], markersize=3)
+    return lines
 
 def plot_mcmc_diagnostics(fig, diagnostic, burnin, subsample):
+    lines = []
     variable, trace = diagnostic['variable'], diagnostic['trace']
     trace = array(trace).flatten()
     ax = fig.add_subplot(121)
-    ax.plot(trace)
+    lines = ax.plot(trace)
     axvline(x=burnin, color='r')
     ax.set_ylabel(variable)
     ax.set_title('Trace of %s'%variable)
@@ -75,6 +83,7 @@ def plot_mcmc_diagnostics(fig, diagnostic, burnin, subsample):
     ax.set_ylabel('lag')
     ax.set_ylabel('ACF')
     ax.set_title('Autocorrelation in %s'%variable)
+    return lines
 
 def plot_iteration(evidence):
     '''
