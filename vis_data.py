@@ -44,7 +44,9 @@ def main():
 
         fig = figure(figsize=(16,6))
         ax = fig.add_subplot(111)
-        plot_data(ax, data, all_black=options.all_black)
+        plot_data(ax, data, all_black=options.all_black, elim_noise=False, markersize=10)
+        xlabel('along track distance d')
+        ylabel('range z')
         if validation_data is not None:
             plot(d, validation_data['g'], 'k-')
 

@@ -1,22 +1,21 @@
 import pdb
 from collections import defaultdict
 import logging
+import time
+import pickle
 
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from scipy import zeros, sum, dot, transpose, diag, mean
 
 from stats_util import online_meanvar
 
-log_level = logging.ERROR
-logging.basicConfig(level=log_level, format='%(asctime)s %(message)s')
-
 class Model():
     def __init__(self):
         self.variable_names = None
         self.known_params = None
         self.hyper_params = None
-        self.data = None
         self.priors = None
+        self.data = None
         self.initials = None
         self.FCP_samplers = None
         self.sample_handlers = None
@@ -46,8 +45,8 @@ class Model():
     def set_diagnostic_variable(self, v):
         self.diagnostic_variable = v
 
-    def set_data(self, d_dict):
-        self.data = d_dict
+    def set_data(self, data):
+        self.data = data
 
 
 class GibbsStep(object):
@@ -82,7 +81,42 @@ class GibbsSampler(object):
         self.diagnostic_variable = variable
         self.diagnostic_trace = []
 
-    def run(self):
+    def multi_run(self):
+        '''
+        Performs run of gibbs sampler
+        '''
+        # Initialize dictionary of evidence
+        evidence = {}
+        evidence.update(self.model.known_params)
+        evidence.update(self.model.hyper_params)
+        evidence.update(self.model.data)
+
+        # Initial sample from priors
+        for variable in self.model.variable_names:
+            if self.model.initials and variable in self.model.initials:
+                evidence[variable] = self.model.initials[variable]
+            else:
+                evidence[variable] = self.model.priors[variable].rvs()
+
+        # Let the sampling begin
+        for i in xrange(self.iterations):
+            logging.info('Iteration: %s' % i)
+            for variable in self.model.variable_names:
+                logging.info('Sampling %s from FCP'%variable)
+                FCP_draw_sample = self.model.FCP_samplers[variable]
+                sample = FCP_draw_sample(self.model, evidence)
+                evidence[variable] = sample
+                if i > self.burnin and i % self.subsample == 0:
+                    # Pass sample to its handlers
+                    for handler in self.sample_handlers[variable]:
+                        handler.update(sample)
+
+            if self.diagnostic_variable:
+                self.diagnostic_trace.append(evidence[self.diagnostic_variable])
+
+        return
+
+    def single_run(self):
         '''
         Performs run of gibbs sampler
         '''
@@ -143,6 +177,43 @@ class GibbsSampler(object):
                                      'trace': self.diagnostic_trace}
         return results
 
+
+def gibbs_worker(args):
+    data, data_filename, outfile, iterations, burnin, subsample, model, params = args
+    logging.info('Loading param file: %s'%params)
+    params_module = __import__(params)
+    logging.info('Done loading param file: %s'%params)
+    logging.info('Loading model file: %s'%model)
+    model_module = __import__(model)
+    logging.info('Done loading model file: %s'%model)
+    n = len(list(set(data.shot_id)))
+    N = len(list(set(data)))
+    model = model_module.define_model(params_module, data)
+
+    sampler = GibbsSampler(
+            model=model,
+            iterations=iterations,
+            burnin=burnin,
+            subsample=subsample)
+
+    start_time = time.time()
+    logging.info('Starting sampler: %s' % outfile)
+    sampler.multi_run()
+    logging.info('Done sampler: %s' % outfile)
+    processing_time = time.time() - start_time
+
+    results = {}
+    results['slice'] = slice(min(data.index), max(data.index))
+    results['iterations'] = sampler.iterations
+    results['burnin'] = sampler.burnin
+    results['subsample'] = sampler.subsample 
+    results['variable_names'] = model.variable_names
+    results['known_params'] = model.known_params
+    results['hyper_params'] = model.hyper_params
+    results['data_filename'] = data_filename
+    results['processing_time'] = processing_time
+    results['gibbs_results'] = sampler.results()
+    pickle.dump(results, open(outfile, 'wb'))
 
 
 class generic_sample_handler():

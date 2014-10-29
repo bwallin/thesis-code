@@ -41,8 +41,8 @@ def get_initials(data):
 def get_hyper_params(data):
     N = len(data)
     n = len(set(data.shot_id))
-    hyper_params = {'g': {'mu': 0*ones(n), 'cov': 1000*eye(n)}, # mvn prior
-                    'h': {'mu': mu_h*ones(n), 'cov': 1000*eye(n)}, # mvn prior
+    hyper_params = {'g': {'mu': 0*ones(n), 'cov': 1000*ones(n)}, # iid normal prior
+                    'h': {'mu': mu_h*ones(n), 'cov': 1000*ones(n)}, # iid normal prior
                     'T': {'p': ones(m_type)/m_type}, # iid categorical prior
                     'C': {'p': ones(m_cover)/m_cover}, # iid categorical prior
                     'noise_proportion': {'alpha': array((N*.3, N*.3))}, # dirichlet prior

@@ -39,8 +39,8 @@ def get_hyper_params(data):
     n = len(set(data.shot_id))
     validation_filepath = os.path.splitext(data.filepath)[0]+'.pkl'
     validation_pickle = pickle.load(open(validation_filepath, 'r'))
-    hyper_params = {'g': {'mu': validation_pickle['g'], 'cov': 1000*eye(n)}, # mvn prior
-                    'h': {'mu': validation_pickle['h'], 'cov': 1000*eye(n)}, # mvn prior
+    hyper_params = {'g': {'mu': validation_pickle['g'], 'cov': 1000*ones(n)}, # iid normal prior
+                    'h': {'mu': validation_pickle['h'], 'cov': 1000*ones(n)}, # iid normal prior
                     'T': {'p': ones(m_type)/m_type}, # iid categorical prior
                     'C': {'p': ones(m_cover)/m_cover}, # iid categorical prior
                     'noise_proportion': {'alpha': array((0, 0))}, # dirichlet prior

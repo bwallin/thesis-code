@@ -19,42 +19,54 @@ def main():
     ### Parse command line options
     usage = "usage: %prog [options] datafile"
     cmdline_parser = OptionParser(usage=usage)
-    cmdline_parser.add_option('-o', '--output', dest='output_filename', metavar='FILE',
-                              default='results.pkl',
-                              help='Serialize results to pickle FILE')
-    cmdline_parser.add_option('-m', '--model', dest='model', metavar='FILE',
-                              default='model',
-                              help='Choose model to use')
-    cmdline_parser.add_option('-v', '--verbose', dest='loglevel', default=logging.WARNING,
-                              action='store_const', const=logging.DEBUG,
-                              help='Debug logging level mode')
-    cmdline_parser.add_option('-i', '--iterations', dest='iterations',
-                              type='int', default=25000,
-                              help='Number of Gibbs iterations')
-    cmdline_parser.add_option('-b', '--burnin', dest='burnin',
-                              type='int', default=500,
-                              help='Number of burn-in iterations')
-    cmdline_parser.add_option('-s', '--subsample', dest='subsample',
-                              type='int', default=10,
-                              help='Subsample rate')
-    cmdline_parser.add_option('-t', '--start', dest='start',
-                              type='int', default=None,
-                              help='start')
-    cmdline_parser.add_option('-e', '--end', dest='end',
-                              type='int', default=None,
-                              help='end')
-    cmdline_parser.add_option('-g', '--visualize', dest='visualize',
-                              action='store_true',
-                              help='Visualize intermediate results')
-    cmdline_parser.add_option('-G', '--visualize-priors', dest='visualize_priors',
-                              action='store_true',
-                              help='Visualize prior distributions')
-    cmdline_parser.add_option('-p', '--parameter-file', dest='parameter_filename',
-                              help='Use known parameters in file (i.e. simulated file).')
+    cmdline_parser.add_option(
+            '-o', '--output', dest='output_filename', metavar='FILE',
+            default='results.pkl',
+            help='Serialize results to pickle FILE')
+    cmdline_parser.add_option(
+            '-m', '--model', dest='model', metavar='FILE',
+            default='model',
+            help='Choose model to use')
+    cmdline_parser.add_option(
+            '-v', '--verbose', dest='loglevel', default=logging.WARNING,
+            action='store_const', const=logging.DEBUG,
+            help='Debug logging level mode')
+    cmdline_parser.add_option(
+            '-i', '--iterations', dest='iterations',
+            type='int', default=25000,
+            help='Number of Gibbs iterations')
+    cmdline_parser.add_option(
+            '-b', '--burnin', dest='burnin',
+            type='int', default=500,
+            help='Number of burn-in iterations')
+    cmdline_parser.add_option(
+            '-s', '--subsample', dest='subsample',
+            type='int', default=10,
+            help='Subsample rate')
+    cmdline_parser.add_option(
+            '-t', '--start', dest='start',
+            type='int', default=None,
+            help='start')
+    cmdline_parser.add_option(
+            '-e', '--end', dest='end',
+            type='int', default=None,
+            help='end')
+    cmdline_parser.add_option(
+            '-g', '--visualize', dest='visualize',
+            action='store_true',
+            help='Visualize intermediate results')
+    cmdline_parser.add_option(
+            '-G', '--visualize-priors', dest='visualize_priors',
+            action='store_true',
+            help='Visualize prior distributions')
+    cmdline_parser.add_option(
+            '-p', '--parameter-file', dest='parameter_filename',
+            help='Use known parameters in file (i.e. simulated file).')
     options, args = cmdline_parser.parse_args()
 
     logging.basicConfig(level=options.loglevel, format='%(asctime)s %(message)s')
     data_filename = args[0]
+
     gibbs_iters = options.iterations
     burnin = options.burnin
     subsample = options.subsample
@@ -65,13 +77,14 @@ def main():
 
     # Build model and load data
     data = load_as_frame(data_filename, start=options.start, end=options.end)
-    model = model_module.define_model(data)
+    model = model_module.define_model(data, known_params)
 
     # Setup gibbs sampler
-    sampler = GibbsSampler(model=model,
-                           iterations=gibbs_iters,
-                           burnin=burnin,
-                           subsample=subsample)
+    sampler = GibbsSampler(
+            model=model,
+            iterations=gibbs_iters,
+            burnin=burnin,
+            subsample=subsample)
     if options.visualize:
         sampler.add_visualizer(model_module.visualize_gibbs)
     if options.visualize_priors:

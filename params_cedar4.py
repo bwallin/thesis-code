@@ -15,7 +15,7 @@ m_cover = len(canopy_cover)
 m_type = 3
 z_min, z_max = -50, 50
 
-def get_known_params(data):
+def get_known_params():
     known_params = {'observation_var_g': observation_var_g, # observation stdev
                     'observation_var_h': observation_var_h,
                     'mu_h': mu_h, # mean canopy
@@ -26,9 +26,7 @@ def get_known_params(data):
                     'cover_transition_matrix': cover_transition_matrix} # canopy transition matrix
     return known_params
 
-def get_initials(data):
-    N = len(data)
-    n = len(set(data.shot_id))
+def get_initials(n, N):
     g_guess = 15
     initials = {'g': g_guess*ones(n),
                 'h': mu_h*2*ones(n),
@@ -38,11 +36,9 @@ def get_initials(data):
                 'transition_var_h': 1}
     return initials
 
-def get_hyper_params(data):
-    N = len(data)
-    n = len(set(data.shot_id))
-    hyper_params = {'g': {'mu': 0*ones(n), 'cov': 1000*eye(n)}, # mvn prior
-                    'h': {'mu': mu_h*ones(n), 'cov': 1000*eye(n)}, # mvn prior
+def get_hyper_params(n, N):
+    hyper_params = {'g': {'mu': 0*ones(n), 'cov': 1000*ones(n)}, # iid normal prior
+                    'h': {'mu': mu_h*ones(n), 'cov': 1000*ones(n)}, # iid normal prior
                     'T': {'p': ones(m_type)/m_type}, # iid categorical prior
                     'C': {'p': ones(m_cover)/m_cover}, # iid categorical prior
                     'noise_proportion': {'alpha': array((N*.3, N*.3))}, # dirichlet prior

@@ -51,8 +51,8 @@ cover_transition_matrix = param_module.cover_transition_matrix
 
 transition_g_rv = stats.norm(0, sqrt(transition_var_g))
 transition_h_rv = stats.norm(0, sqrt(transition_var_h))
-observation_g_rv = stats.norm(0, observation_var_g)
-observation_h_rv = stats.norm(0, observation_var_h)
+observation_g_rv = stats.norm(0, sqrt(observation_var_g))
+observation_h_rv = stats.norm(0, sqrt(observation_var_h))
 noise_rv = stats.uniform(loc=-50, scale=100)
 
 T = zeros((n,), dtype=int)
