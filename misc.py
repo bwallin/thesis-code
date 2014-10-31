@@ -35,6 +35,7 @@ def gen_shot_ids(frame, tol=.05):
 
     return sids
 
+
 def load_as_frame(filepath, start=None, end=None):
     if 'matlas' in filepath:
         return _load_matlas_as_frame(filepath, start=start, end=end)

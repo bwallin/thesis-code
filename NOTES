@@ -1,7 +1,7 @@
 TO-CODE:
     refactor datastructure to use pandas
     pymc implementation
-    integrate kalman sampler
+    integrate kalman sampler to pykalman
 
 TO-MODEL:
     switching surface type variable

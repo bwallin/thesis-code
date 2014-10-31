@@ -24,10 +24,9 @@ from misc import forward_filter_backward_sample
 from stats_util import Dirichlet, Categorical, MVNormal, IID, Multinomial
 
 
-###############################################################################
 def define_model(params_module, data):
-    # Builds model object 
-    # Encapsulates everything the gibbs sampler needs to know about.
+    # Builds model object
+    # Everything the gibbs sampler needs to know about.
 
     # Parameters and initialization values
     n = len(list(set(data.shot_id)))
@@ -97,15 +96,15 @@ class ground_elev_step(GibbsStep):
 
         observation_var_g = model.known_params['observation_var_g']
         observation_var_h = model.known_params['observation_var_h']
-        prior_mu_g = model.hyper_params['g']['mu'] 
-        prior_cov_g = model.hyper_params['g']['cov'] 
+        prior_mu_g = model.hyper_params['g']['mu']
+        prior_cov_g = model.hyper_params['g']['cov']
         N = len(z)
         n = len(g)
 
         # Make g, h, and z vector valued to avoid ambiguity
         g = g.copy().reshape((n, 1))
         h = h.copy().reshape((n, 1))
-        
+
         z_g = ma.asarray(nan + zeros((n, 1)))
         obs_cov = ma.asarray(inf + zeros((n, 1, 1)))
         for i in xrange(n):
@@ -118,11 +117,11 @@ class ground_elev_step(GibbsStep):
                 z_g[i] = (mean(z_i[T_i == 1])/obs_cov_g + mean(z_i[T_i == 2] - h[i])/obs_cov_h)/(1/obs_cov_g + 1/obs_cov_h)
                 obs_cov[i] = 1/(1/obs_cov_g + 1/obs_cov_h)
             elif 1 in T_i:
-                n_obs_g = sum(T_i == 1) 
+                n_obs_g = sum(T_i == 1)
                 z_g[i] = mean(z_i[T_i == 1])
                 obs_cov[i] = observation_var_g/n_obs_g
             elif 2 in T_i:
-                n_obs_h = sum(T_i == 2) 
+                n_obs_h = sum(T_i == 2)
                 z_g[i] = mean(z_i[T_i == 2] - h[i])
                 obs_cov[i] = observation_var_h/n_obs_h
 
@@ -218,7 +217,7 @@ class transition_var_h_step(GibbsStep):
         a = model.hyper_params['transition_var_h']['a']
         b = model.hyper_params['transition_var_h']['b']
         max_var = model.hyper_params['transition_var_h']['max']
-        
+
         phi = model.known_params['phi']
         mu = model.known_params['mu_h']
 
@@ -270,8 +269,8 @@ class type_step(GibbsStep):
 
 class cover_step(GibbsStep):
     def sample(self, model, evidence):
-        noise_proportion = evidence['noise_proportion'] 
-        T = evidence['T'] 
+        noise_proportion = evidence['noise_proportion']
+        T = evidence['T']
         C = evidence['C']
         shot_id = evidence['shot_id']
 
@@ -282,8 +281,8 @@ class cover_step(GibbsStep):
         m_type = 3
         m_cover = len(canopy_cover)
 
-        emissions = array([[noise_proportion, 
-                            (1-noise_proportion)*(1-canopy_cover[i]), 
+        emissions = array([[noise_proportion,
+                            (1-noise_proportion)*(1-canopy_cover[i]),
                             (1-noise_proportion)*(canopy_cover[i])] for i in xrange(m_cover)])
 
         counts = [sum(T[shot_id == 0] == j) for j in range(m_type)]
